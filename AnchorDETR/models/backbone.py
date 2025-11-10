@@ -97,9 +97,17 @@ class Backbone(BackboneBase):
                  return_interm_layers: bool,
                  dilation: bool):
         norm_layer = FrozenBatchNorm2d
+        weights = None
+        if is_main_process():
+            try:
+                weights_enum = getattr(torchvision.models, f"{name.upper()}_Weights", None)
+            except AttributeError:
+                weights_enum = None
+            if weights_enum is not None:
+                weights = weights_enum.IMAGENET1K_V1
         backbone = getattr(torchvision.models, name)(
             replace_stride_with_dilation=[False, False, dilation],
-            pretrained=is_main_process(), norm_layer=norm_layer)
+            weights=weights, norm_layer=norm_layer)
         assert name not in ('resnet18', 'resnet34'), "number of channels are hard coded"
         super().__init__(backbone, train_backbone, return_interm_layers)
         if dilation:

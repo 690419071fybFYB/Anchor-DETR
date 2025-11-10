@@ -8,8 +8,9 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 # ------------------------------------------------------------------------
 from .anchor_detr import build
+from .anchor_detr_hiff import build_hiff, AnchorDETRWithHIFF
+from .hiff import HIFF, HIFFBlock
 
 
 def build_model(args):
     return build(args)
-

@@ -1,0 +1,27 @@
+# Bytecode & cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Build outputs / logs
+*.log
+*.pth
+*.ckpt
+*.onnx
+*.npy
+*.npz
+
+# Project specific
+output/
+*.ipynb_checkpoints
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

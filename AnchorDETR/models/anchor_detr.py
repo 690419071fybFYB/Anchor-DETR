@@ -24,6 +24,7 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
+from .reconstruction_attention import ReconstructionAttention
 import copy
 
 
@@ -67,6 +68,12 @@ class AnchorDETR(nn.Module):
                 )])
         self.backbone = backbone
         self.aux_loss = aux_loss
+        self.reconstruct = None
+        if len(backbone.num_channels) >= 2:
+            self.reconstruct = ReconstructionAttention(
+                c_f1=backbone.num_channels[-2],
+                c_f2=backbone.num_channels[-1]
+            )
 
         for proj in self.input_proj:
             nn.init.xavier_uniform_(proj[0].weight, gain=1)
@@ -89,13 +96,24 @@ class AnchorDETR(nn.Module):
         """
         if not isinstance(samples, NestedTensor):
             samples = nested_tensor_from_tensor_list(samples)
-        features = self.backbone(samples)
+        features = list(self.backbone(samples))
+        total_levels = len(features)
+        if self.reconstruct is not None and total_levels >= 2:
+            f1_tensor, f1_mask = features[-2].decompose()
+            f2_tensor, _ = features[-1].decompose()
+            enhanced_f1 = self.reconstruct(f1_tensor, f2_tensor)
+            features[-2] = NestedTensor(enhanced_f1, f1_mask)
+
+        use_levels = min(self.num_feature_levels, total_levels)
+        start_idx = total_levels - use_levels
+        features = features[start_idx:]
+        input_projs = self.input_proj[start_idx:]
 
         srcs = []
         masks = []
-        for l, feat in enumerate(features):
+        for proj, feat in zip(input_projs, features):
             src, mask = feat.decompose()
-            srcs.append(self.input_proj[l](src).unsqueeze(1))
+            srcs.append(proj(src).unsqueeze(1))
             masks.append(mask)
             assert mask is not None
 

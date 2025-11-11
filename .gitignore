@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Logs / checkpoints
+*.log
+*.pth
+*.ckpt
+*.onnx
+
+# Project specific outputs
+output/
+*.ipynb_checkpoints
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

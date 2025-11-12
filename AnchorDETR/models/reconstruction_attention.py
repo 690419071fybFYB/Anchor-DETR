@@ -61,3 +61,10 @@ class ReconstructionAttention(nn.Module):
         mask = torch.sigmoid(f1 - f2_recon)
         enhanced = f1 * mask
         return self.pma(enhanced)
+
+if __name__ == "__main__":
+    f1 = torch.randn(1, 256, 64, 64)
+    f2 = torch.randn(1, 128, 128, 128)
+    ra = ReconstructionAttention(256, 128)
+    enhanced = ra(f1, f2)
+    print(enhanced.shape)

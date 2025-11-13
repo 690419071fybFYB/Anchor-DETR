@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.serialization
 from torch.utils.data import DataLoader
 import datasets
 import util.misc as utils
@@ -24,6 +25,10 @@ import datasets.samplers as samplers
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
+
+# Torch 2.6 loads checkpoints with weights_only=True by default, so we need to
+# allowlist argparse.Namespace which is stored in historical AnchorDETR checkpoints.
+torch.serialization.add_safe_globals([argparse.Namespace])
 
 
 def get_args_parser():
@@ -108,7 +113,7 @@ def get_args_parser():
     parser.add_argument('--coco_path', default='/home/fyb/datasets/RSOD_cocoFormat', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--output_dir', default='./data/detr-workdir/r50-dc5',
+    parser.add_argument('--output_dir', default='./data/detr-workdir/dul_recon_att',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -293,17 +298,20 @@ def main(args):
             model, criterion, data_loader_train, optimizer, device, epoch, args.clip_max_norm)
         lr_scheduler.step()
         if args.output_dir:
-            checkpoint_paths = [output_dir / 'checkpoint.pth']
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0:
-                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
-            for checkpoint_path in checkpoint_paths:
-                utils.save_on_master({
-                    'model': model_without_ddp.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
-                    'epoch': epoch,
-                    'args': args,
-                }, checkpoint_path)
+            utils.save_on_master({
+                'model': model_without_ddp.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'lr_scheduler': lr_scheduler.state_dict(),
+                'epoch': epoch,
+                'args': args,
+            }, output_dir / 'checkpoint.pth')
+            utils.save_on_master({
+                'model': model_without_ddp.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'lr_scheduler': lr_scheduler.state_dict(),
+                'epoch': epoch,
+                'args': args,
+            }, output_dir / f'checkpoint_epoch_{epoch + 1:04}.pth')
 
         test_stats, coco_evaluator = evaluate(
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir

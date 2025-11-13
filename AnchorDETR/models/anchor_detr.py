@@ -100,9 +100,10 @@ class AnchorDETR(nn.Module):
         total_levels = len(features)
         if self.reconstruct is not None and total_levels >= 2:
             f1_tensor, f1_mask = features[-2].decompose()
-            f2_tensor, _ = features[-1].decompose()
-            enhanced_f1 = self.reconstruct(f1_tensor, f2_tensor)
+            f2_tensor, f2_mask = features[-1].decompose()
+            enhanced_f1, enhanced_f2 = self.reconstruct(f1_tensor, f2_tensor)
             features[-2] = NestedTensor(enhanced_f1, f1_mask)
+            features[-1] = NestedTensor(enhanced_f2, f2_mask)
 
         use_levels = min(self.num_feature_levels, total_levels)
         start_idx = total_levels - use_levels

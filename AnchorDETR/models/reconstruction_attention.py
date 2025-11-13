@@ -30,9 +30,9 @@ class PMA(nn.Module):
 
 class ReconstructionAttention(nn.Module):
     """
-    实现文中描述的 F2 -> F1 重构注意力:
-        mask = Sigmoid(F1 - Conv1x1(Up(F2)))
-        RA(F1, F2) = PMA(F1 * mask)
+    同时为 F1、F2 提供互补信息的重构注意力:
+        mask_f1 = Sigmoid(F1 - Conv(Up(F2)))
+        mask_f2 = Sigmoid(F2 - Conv(Down(F1)))
     """
 
     def __init__(
@@ -40,31 +40,50 @@ class ReconstructionAttention(nn.Module):
         c_f1: int,
         c_f2: int,
         upsample_mode: str = "bilinear",
+        downsample_mode: str = "bilinear",
         pma_reduction: int = 16,
     ):
         super().__init__()
-        self.align = nn.Sequential(
+        self.align_low_to_high = nn.Sequential(
             nn.Conv2d(c_f2, c_f1, kernel_size=1, bias=False),
             nn.BatchNorm2d(c_f1),
         )
+        self.align_high_to_low = nn.Sequential(
+            nn.Conv2d(c_f1, c_f2, kernel_size=1, bias=False),
+            nn.BatchNorm2d(c_f2),
+        )
         self.upsample_mode = upsample_mode
-        self.pma = PMA(c_f1, reduction=pma_reduction)
+        self.downsample_mode = downsample_mode
+        self.pma_f1 = PMA(c_f1, reduction=pma_reduction)
+        self.pma_f2 = PMA(c_f2, reduction=pma_reduction)
 
-    def forward(self, f1: torch.Tensor, f2: torch.Tensor) -> torch.Tensor:
+    def forward(self, f1: torch.Tensor, f2: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         f2_up = F.interpolate(
             f2,
             size=f1.shape[-2:],
             mode=self.upsample_mode,
             align_corners=False if self.upsample_mode in {"bilinear", "bicubic"} else None,
         )
-        f2_recon = self.align(f2_up)
-        mask = torch.sigmoid(f1 - f2_recon)
-        enhanced = f1 * mask
-        return self.pma(enhanced)
+        f2_recon = self.align_low_to_high(f2_up)
+        mask_f1 = torch.sigmoid(f1 - f2_recon)
+        enhanced_f1 = self.pma_f1(f1 * mask_f1)
+
+        f1_down = F.interpolate(
+            f1,
+            size=f2.shape[-2:],
+            mode=self.downsample_mode,
+            align_corners=False if self.downsample_mode in {"bilinear", "bicubic"} else None,
+        )
+        f1_recon = self.align_high_to_low(f1_down)
+        mask_f2 = torch.sigmoid(f2 - f1_recon)
+        enhanced_f2 = self.pma_f2(f2 * mask_f2)
+
+        return enhanced_f1, enhanced_f2
 
 if __name__ == "__main__":
     f1 = torch.randn(1, 256, 64, 64)
     f2 = torch.randn(1, 128, 128, 128)
     ra = ReconstructionAttention(256, 128)
-    enhanced = ra(f1, f2)
-    print(enhanced.shape)
+    enhanced1,enhanced2 = ra(f1, f2)
+    print(enhanced1.shape,enhanced2.shape)
+

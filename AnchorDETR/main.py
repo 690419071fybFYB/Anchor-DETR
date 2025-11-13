@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.serialization
 from torch.utils.data import DataLoader
 import datasets
 import util.misc as utils
@@ -24,6 +25,9 @@ import datasets.samplers as samplers
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
+
+# allow checkpoints saved with argparse.Namespace under torch.load(weights_only=True)
+torch.serialization.add_safe_globals([argparse.Namespace])
 
 
 def get_args_parser():
